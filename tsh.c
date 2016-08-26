@@ -17,6 +17,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include <fcntl.h>
 
 /* Misc manifest constants */
 #define MAXLINE    1024   /* max line size */
@@ -46,9 +47,13 @@ char prompt[] = "tsh> ";    /* command line prompt (DO NOT CHANGE) */
 int verbose = 0;            /* if true, print additional output */
 int nextjid = 1;            /* next job ID to allocate */
 char sbuf[MAXLINE];         /* for composing sprintf messages */
-pid_t fpid;		    /* foreground pid*/
-int in = 0;	    /* sets to true(1) in parseLine if < is found  */
-int out = 0;	    /* sets to true(1) in parseLine if > is found  */
+pid_t fpid;		    			 /* foreground pid*/
+int in = -1;	    				 /* sets to true(1) in parseLine if < is found  */
+int out = -1;	   			 /* sets to true(1) in parseLine if > is found  */
+int IOfileIndex = 0;			 /* set in ParseLine, to the index of the filename for IO redirection  */
+char* IOredirFile;	 /* file name for IO redirection  */
+char* pipeCommand;
+int pipeIndex = -1;
 
 struct job_t {              /* The job struct */
     pid_t pid;              /* job PID */
@@ -74,6 +79,9 @@ void sigtstp_handler(int sig);
 void sigint_handler(int sig);
 void sigcont_handler(int sig);
 void printJob(pid_t pid);
+void getIOfile(char** argv);
+void getPipeIndex(char** argv);
+
 /* Here are helper routines that we've provided for you */
 int parseline(const char *cmdline, char **argv); 
 void sigquit_handler(int sig);
@@ -157,9 +165,14 @@ int main(int argc, char **argv)
 	int bg = parseline(cmdline, parsedArgs);
 	//Argv is now the input line, parsed to separate arguments from the command.
 	//the last entry in the array is NULL, so that we do not need to find or store the size
-
+	
 	/* Evaluate the command line */
 	int builtin = builtin_cmd(parsedArgs);
+
+	getIOfile(parsedArgs); //gets location of file name if < or > is found
+	getPipeIndex(parsedArgs);
+	parsedArgs[IOfileIndex-1] = NULL; //sets the < or > if found to NULL so they are not included when command is run
+
 	//	printf("parsed %c \n builtin %d\n", *parsedArgs[0], builtin);
 
 	if(builtin == 0)
@@ -224,20 +237,36 @@ int parseline(const char *cmdline, char **argv)
     char *delim;                /* points to first space delimiter */
     int argc;                   /* number of args */
     int bg;                     /* background job? */
+	 in = -1;
+	 out = -1;
 
-    strcpy(buf, cmdline);
+	 strcpy(buf, cmdline);
     buf[strlen(buf)-1] = ' ';  /* replace trailing '\n' with space */
     while (*buf && (*buf == ' ')) /* ignore leading spaces */
 		buf++;
 
     /* Build the argv list */
     argc = 0;
-    if (*buf == '\'') {
-	buf++;
-	delim = strchr(buf, '\'');
+    if (*buf == '\'') 
+	 {
+	   buf++;
+  	 	delim = strchr(buf, '\'');
     }
-    else {
-	delim = strchr(buf, ' ');
+ 	/* else if (*buf == '<')
+	 {
+		delim = strchr(buf,' ');
+		in = 1;
+		printf("\nin\n");
+	 }
+	 else if(*buf == '>')
+	 {
+		delim = strchr(buf, ' ');
+		out = 1;
+		printf("\nout\n");
+	 }*/
+    else 
+	 {
+	 	delim = strchr(buf, ' ');
     }
 
     while (delim) {
@@ -250,18 +279,6 @@ int parseline(const char *cmdline, char **argv)
 	if (*buf == '\'') {
 	    buf++;
 	    delim = strchr(buf, '\'');
-	}
-	else if (*buf == '<')
-	{
-		buf++;
-		delim = strchr(buf,'\'');
-		in = 1;
-	}
-	else if(*buf == '>')
-	{
-		buf++;
-		delim = strchr(buf, '\'');
-		out = 1;
 	}
 	else {
 	    delim = strchr(buf, ' ');
@@ -446,7 +463,6 @@ void sigint_handler(int sig)
 		printf("\nJob [%d] (%d) terminated with signal %d\n",termJob->jid,termJob->pid,sig);
 	 	killpg(fpid, SIGTERM);
 		fpid = 0;
-//		deletejob(jobs,fpid);
 	 }
 	 return;
 }
@@ -473,7 +489,6 @@ void sigtstp_handler(int sig)
 		paused->state = ST;
 		fpid = 0;
 	 }
-
     return;
 }
 
@@ -749,6 +764,19 @@ void launch(char** argv, int bg)
 	{
 		//Child process
 		//printJob(getpid());
+
+		if(in == 1)
+		{
+			int inFD = open(IOredirFile, O_RDONLY);
+			dup2(inFD,STDIN_FILENO);
+			close(inFD);
+		}
+		else if(out == 1)
+		{
+			int outFD = creat(IOredirFile, 0644);
+			dup2(outFD, STDOUT_FILENO);
+			close(outFD);
+		}
 		setpgid(getpid(),getpid());//can be replaced with setpgid(0,0), which does the same thing
 		if(execvp(argv[0], argv) == -1)
 		{
@@ -776,4 +804,54 @@ void launch(char** argv, int bg)
 	}
 
 }
+
+void getIOfile(char** argv)
+{
+	in = -1;
+	out = -1;
+
+	int i = 0;
+	while(argv[i] != NULL)
+	{
+		if(strcmp(argv[i],"<") == 0)
+		{
+			in = 1;
+		}
+		else if(strcmp(argv[i],">") == 0)
+		{
+			out = 1;
+		}
+		if(in == 1 || out == 1)
+		{
+			if(argv[i+1] != NULL)
+			{
+				IOfileIndex = i+1;
+				IOredirFile = malloc(sizeof argv[i+1]);
+				IOredirFile = argv[i+1];
+			}
+		}
+		i++;
+	}
+	return;
+}
+
+void getPipeIndex(char** argv)
+{
+	pipeIndex = -1;
+	int i = 0;
+	while(argv[i] != NULL)
+	{
+		if(strcmp(argv[i],"|") == 0)
+		{
+			pipeIndex = i+1;
+			printf("pipe found\n");
+			argv[i] = NULL;
+			//ADD SOME STUFF
+		}
+		i++;
+	}
+
+	return;
+}
+
 
