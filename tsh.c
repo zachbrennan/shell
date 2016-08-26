@@ -339,6 +339,7 @@ void do_bgfg(char **argv)
 			}
 			kill(-bgfgJob->pid, SIGCONT);	
 			bgfgJob->state = BG;	
+			printJob(bgfgJob->pid);
 		}
 		else
 		{
@@ -351,6 +352,7 @@ void do_bgfg(char **argv)
 			}
 			kill(-bgfgJob->pid, SIGCONT);	
 			bgfgJob->state = BG;	
+			printJob(bgfgJob->pid);
 		}
 	}
 	else if(strcmp(argv[0], "fg") == 0)
@@ -440,8 +442,9 @@ void sigint_handler(int sig)
 	 }
 	 else
 	 {
-		printf("\nQuitting with SIGINT\n");
-	 	kill(fpid, SIGTERM);
+		struct job_t* termJob = getjobpid(jobs,fpid);
+		printf("\nJob [%d] (%d) terminated with signal %d\n",termJob->jid,termJob->pid,sig);
+	 	killpg(fpid, SIGTERM);
 		fpid = 0;
 //		deletejob(jobs,fpid);
 	 }
@@ -455,7 +458,6 @@ void sigint_handler(int sig)
  */
 void sigtstp_handler(int sig) 
 {
-	 printf("Stopping with sigstop\n");
 	 fpid = fgpid(jobs);
 	 if(fpid == 0)
 	 {
@@ -464,7 +466,9 @@ void sigtstp_handler(int sig)
 	 }
 	 else
 	 {
-	 	kill(-fpid, SIGTSTP);
+		struct job_t* stoppedJob = getjobpid(jobs,fpid);
+		printf("\nJob [%d] (%d) stopped with signal %d\n",stoppedJob->jid,stoppedJob->pid,sig);
+	 	killpg(fpid, SIGTSTP);
 		struct job_t* paused = getjobpid(jobs,fpid);
 		paused->state = ST;
 		fpid = 0;
@@ -722,8 +726,7 @@ void sigquit_handler(int sig)
 void launch(char** argv, int bg)
 {
 	//bg == 1 means do in background
-	pid_t pid, wpid;
-	int status;
+	pid_t pid;
 
 	pid = fork();
 
@@ -731,8 +734,8 @@ void launch(char** argv, int bg)
 		addjob(jobs,pid,BG,argv[0]);
 	else if(bg == 0)
 		addjob(jobs,pid,FG, argv[0]);
-
-//	printJob(pid);
+	//if(pid != 0)
+//		printJob(pid);
 
 
 //		printf("pid from parent %d \n",getpid());
@@ -745,19 +748,31 @@ void launch(char** argv, int bg)
 	else if(pid == 0)
 	{
 		//Child process
-		setpgid(getpid(),getpid());
-		execvp(argv[0], argv);
+		//printJob(getpid());
+		setpgid(getpid(),getpid());//can be replaced with setpgid(0,0), which does the same thing
+		if(execvp(argv[0], argv) == -1)
+		{
+			printf("(");
+			fputs(argv[0], stdout);
+			printf("): is not a valid command.\n");
+		}
 		exit(-1); //exec shouldn't return, if it does, exit.
 	}
 	else
 	{
 		//Parent process
-
-		if(bg == 0)
+//		printJob(pid);
+		if(bg == 1)
+		{
+			printJob(pid);
+			return;
+		}
+		else
 		{
 			fpid = fgpid(jobs);
 			waitfg(fpid);
 		}
+			
 	}
 
 }
