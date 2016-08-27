@@ -916,23 +916,31 @@ void launch2(char** argv)
 
 		if(strcmp(argv[i], "<") == 0)
 		{
-			int inFD = open(argv[i+1], O_RDONLY);
-			dup2(inFD,STDIN_FILENO);
-			argv[i] = NULL;
-			close(inFD);
+//			int inFD = open(argv[i+1], O_RDONLY);
+//			dup2(inFD,STDIN_FILENO);
+//			argv[i] = NULL;
+//			close(inFD);
 			if(fork() == 0)
 			{
+				int inFD = open(argv[i+1], O_RDONLY);
+				dup2(inFD,STDIN_FILENO);
+				argv[i] = NULL;
+				close(inFD);
 				execvp(argv[0], argv);
 			}
 		}
 		else if(strcmp(argv[i], ">") == 0)
 		{
-			int outFD = creat(argv[i+1], 0644);
-			dup2(outFD, STDOUT_FILENO);
-			argv[i] = NULL;
-			close(outFD);
+//			int outFD = creat(argv[i+1], 0644);
+//			dup2(outFD, STDOUT_FILENO);
+//			argv[i] = NULL;
+//			close(outFD);
 			if(fork() == 0)
 			{
+				int outFD = creat(argv[i+1], 0644);
+				dup2(outFD, STDOUT_FILENO);
+				argv[i] = NULL;
+				close(outFD);
 				execvp(argv[0],argv);
 			}
 		}
