@@ -177,18 +177,25 @@ int main(int argc, char **argv)
 	/* Evaluate the command line */
 	int builtin = builtin_cmd(parsedArgs);
 
-	//	getIOfile(parsedArgs); //gets location of file name if < or > is found
-	//	getPipeIndex(parsedArgs);
+		getIOfile(parsedArgs); //gets location of file name if < or > is found
+
 
 	//parsedArgs[IOfileIndex-1] = NULL; //sets the < or > if found to NULL so they are not included when command is run
 
 	//	printf("parsed %c \n builtin %d\n", *parsedArgs[0], builtin);
 	parseParsed(parsedArgs);
 	getParsedLength(parsedArgs);
-	//if(pipeCount > 0)
-//	{
+	if(pipeCount > 0)
+	{
 		launch4(parsedArgs);
-//	}
+	}
+	else
+	{
+		if(builtin == 0)
+		{
+			launch(parsedArgs,bg);
+		}
+	}
 	/*
 	if(builtin == 0)
 	{
@@ -756,20 +763,14 @@ void sigquit_handler(int sig)
 
 void launch(char** argv, int bg)
 {
-	//bg == 1 means do in background
 	pid_t pid;
-
 	pid = fork();
 
 	if(bg == 1)
 		addjob(jobs,pid,BG,argv[0]);
 	else if(bg == 0)
 		addjob(jobs,pid,FG, argv[0]);
-	//if(pid != 0)
-//		printJob(pid);
 
-
-//		printf("pid from parent %d \n",getpid());
 	signal(SIGCHLD, sigchld_handler);
 	if(pid < 0)
 	{
@@ -793,29 +794,6 @@ void launch(char** argv, int bg)
 			dup2(outFD, STDOUT_FILENO);
 			close(outFD);
 		}
-		/*
-		if(foundPipe == 1)
-		{	
-			int fd[2];
-			pipe(fd);
-			getIOfile(pipeCommand);
-			if(fork() == 0)
-			{
-				//child process for pipe command
-				close(fd[1]);
-				dup2(fd[0],0);
-				execvp(pipeCommand[0],pipeCommand);
-//				launch(pipeCommand,0);
-			}
-			else
-			{
-				//parent
-				close(fd[0]);
-				dup2(fd[1],1);
-//				execvp(argv[0],argv);
-			}
-		}
-		*/
 		setpgid(getpid(),getpid());//can be replaced with setpgid(0,0), which does the same thing
 		if(execvp(argv[0], argv) == -1)
 		{
@@ -889,8 +867,8 @@ void launch2(char** argv)
 				dup2(inFD,STDIN_FILENO);
 				argv[i] = NULL;
 				close(inFD);
-//				execvp(argv[0], argv);
-				launch2(argv);
+				execvp(argv[0], argv);
+
 			}
 		}
 		else if(strcmp(argv[i], ">") == 0)
@@ -901,36 +879,9 @@ void launch2(char** argv)
 				dup2(outFD, STDOUT_FILENO);
 				argv[i] = NULL;
 				close(outFD);
-//				execvp(argv[0],argv);
-				launch2(argv);
-			}
-		}
-		else if(strcmp(argv[i], "|") == 0)
-		{
-			int fd[2];
-			pipe(fd);
-			argv[i] = NULL;
-			if ((pid = fork()) == 0) {
-				dup2(fd[PIPE_WRITE], 1);
-				close(fd[PIPE_READ]);
-				close(fd[PIPE_WRITE]);
-		//		argv[i] = NULL;
-				//execvp(argv[0],argv);            
-				launch2(argv);
+				execvp(argv[0],argv);
 
 			}
-			if ((pid = fork()) == 0) {
-				dup2(fd[PIPE_READ], 0);
-				close(fd[PIPE_READ]);
-				close(fd[PIPE_WRITE]);
-				//execvp(argv[i+1], &argv[i+1]);            
-				launch2(&argv[i+1]);
-
-			}
-			close(fd[0]);
- 	      close(fd[1]);
-	      wait(NULL);
-	      wait(NULL);
 		}
 		i++;
 	}
@@ -1080,7 +1031,6 @@ void launch4(char** argv)
 	{
 		if(strcmp(argv[i], ">") == 0)
 		{
-			printf("found it\n");
 			argv[i] = NULL;
 
 			if((pid = fork()) == 0)
