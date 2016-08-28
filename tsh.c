@@ -471,6 +471,10 @@ void sigchld_handler(int sig)
 	{
 		sigint_handler(status);	
 	}
+	else if(WIFCONTINUED(status))
+	{
+	
+	}
 	else if(WIFSTOPPED(status))
 	{
 		sigtstp_handler(WSTOPSIG(status));
