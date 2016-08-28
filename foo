@@ -10,6 +10,7 @@ mysplit
 mysplit.c
 mystop
 mystop.c
+output
 printStuff
 printStuff.c
 README
