@@ -1097,6 +1097,8 @@ void launch4(char** argv)
 			}
 			close(fd[1]);
 			close(fd[0]);
+			wait(NULL);
+			wait(NULL);
 		}
 		i++;
 	}
