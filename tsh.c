@@ -177,14 +177,17 @@ int main(int argc, char **argv)
 	/* Evaluate the command line */
 	int builtin = builtin_cmd(parsedArgs);
 
-		getIOfile(parsedArgs); //gets location of file name if < or > is found
+	getIOfile(parsedArgs); //gets location of file name if < or > is found
 
 
 	//parsedArgs[IOfileIndex-1] = NULL; //sets the < or > if found to NULL so they are not included when command is run
 
 	//	printf("parsed %c \n builtin %d\n", *parsedArgs[0], builtin);
-	parseParsed(parsedArgs);
+	
 	getParsedLength(parsedArgs);
+	parseParsed(parsedArgs);
+
+//	getParsedLength(parsedArgs);
 	if(pipeCount > 0)
 	{
 		launch4(parsedArgs);
@@ -462,7 +465,7 @@ void waitfg(pid_t fpid)
 void sigchld_handler(int sig) 
 {
 	int status;
-	int pid = waitpid(-1, &status, WNOHANG);
+	int pid = waitpid(-1, &status, WNOHANG|WUNTRACED);
 	
 	if(WIFSIGNALED(status))
 	{
@@ -1043,40 +1046,60 @@ void launch4(char** argv)
 	pipe(fd);
 	int start = 0;
 	start = pipeIndex+1;
-
-	i = start;
-	while(argv[i] != NULL)
+	int found = 0;
+	while(i <= parsedLength)
 	{
-		if(strcmp(argv[i], ">") == 0)
+		if(argv[i] != NULL)
 		{
-			argv[i] = NULL;
+			if(strcmp(argv[i], ">") == 0)
+			{
+				found = 1;
+				argv[i] = NULL;
+	
+				if((pid = fork()) == 0)
+				{
+					close(fd[0]);
+					dup2(fd[1],1);
+					execvp(argv[0], argv);
+				}
+				if((pid = fork()) == 0)
+				{
+					int outFD = creat(argv[i+1], 0664);
+			   	dup2(fd[0],0);
+					close(fd[1]);
+					dup2(outFD,1);
+	
+					close(outFD);
+					execvp(argv[start], &argv[start]);
+				
+				}
+				close(fd[1]);
+				close(fd[0]);
+			}
+		}
+		else if((argv[i] == NULL) && (i+1 < parsedLength) && out != 1)
+		{
 
+			start = i+1;
 			if((pid = fork()) == 0)
 			{
 				close(fd[0]);
 				dup2(fd[1],1);
-				
-	//			argv[i] = NULL;
 				execvp(argv[0], argv);
 			}
 			if((pid = fork()) == 0)
 			{
-				int outFD = creat(argv[i+1], 0664);
-		   	dup2(fd[0],0);
-				close(fd[1]);
-				dup2(outFD,1);
-				close(outFD);
 
-//	//			argv[i] = NULL;
+			  	dup2(fd[0],0);
+				close(fd[1]);
 				execvp(argv[start], &argv[start]);
-			
+				
 			}
 			close(fd[1]);
 			close(fd[0]);
-
 		}
-		
 		i++;
 	}
+	pipeCount--;
 	return;
 }
