@@ -461,9 +461,22 @@ void waitfg(pid_t fpid)
  */
 void sigchld_handler(int sig) 
 {
-	int pid = waitpid(-1, NULL, WNOHANG);
-	//fpid = fgpid(jobs);
-	deletejob(jobs, pid);
+	int status;
+	int pid = waitpid(-1, &status, WNOHANG);
+	
+	if(WIFSIGNALED(status))
+	{
+		sigint_handler(status);	
+	}
+	else if(WIFSTOPPED(status))
+	{
+		sigtstp_handler(WSTOPSIG(status));
+	}	
+	else if(WIFEXITED(status))
+	{
+		//fpid = fgpid(jobs);
+		deletejob(jobs, pid);
+	}
 	return;
 }
 
@@ -477,14 +490,15 @@ void sigint_handler(int sig)
 	 fpid = fgpid(jobs);
 	 if(fpid == 0)
 	 {
-		 printf("No foreground process to terminate.\n");
+	//	 printf("No foreground process to terminate.\n");
 		 return;
 	 }
 	 else
 	 {
 		struct job_t* termJob = getjobpid(jobs,fpid);
 		printf("\nJob [%d] (%d) terminated with signal %d\n",termJob->jid,termJob->pid,sig);
-	 	killpg(fpid, SIGTERM);
+	 	killpg(termJob->pid, SIGTERM);
+		deletejob(jobs,termJob->pid);
 		fpid = 0;
 	 }
 	 return;
@@ -500,7 +514,7 @@ void sigtstp_handler(int sig)
 	 fpid = fgpid(jobs);
 	 if(fpid == 0)
 	 {
-		 printf("\nNo foreground process to stop.\n");
+		// printf("\nNo foreground process to stop.\n");
 		 return;
 	 }
 	 else
@@ -771,7 +785,11 @@ void launch(char** argv, int bg)
 	else if(bg == 0)
 		addjob(jobs,pid,FG, argv[0]);
 
-	signal(SIGCHLD, sigchld_handler);
+//    Signal(SIGINT,  sigint_handler);   /* ctrl-c */
+ //   Signal(SIGTSTP, sigtstp_handler);  /* ctrl-z */
+//    Signal(SIGCHLD, sigchld_handler);  /* Terminated or stopped child */
+
+
 	if(pid < 0)
 	{
 		//Fork error
