@@ -1,3 +1,9 @@
+This basic shell was created for my CS283 class at Drexel. We had 
+an option to either just take the final, or create a shell. If we 
+made the shell, and it passed all the tests in the "trace*.txt"
+files, we got an automatic 100% on the final. If it didn't pass,
+you got nothing and had to take the final anyway. Mine worked.
+
 ################
 CS:APP Shell Lab
 ################
