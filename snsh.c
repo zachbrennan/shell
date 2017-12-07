@@ -73,8 +73,6 @@ int builtin_cmd(char **argv);
 void do_bgfg(char **argv);
 void waitfg(pid_t pid);
 void launch(char** argv, int bg); /* Launches job */
-//void launch2(char** argv);
-//void launch3(char** argv);
 void pipeLaunch(char** argv);	/* Launches job if command contains pipes */
 
 void sigchld_handler(int sig);
@@ -858,48 +856,6 @@ void getIOfile(char** argv)
 	return;
 }
 
-void launch2(char** argv)
-{
-	int i = 0;
-	pid_t pid;
-	while(argv[i] != NULL)
-	{
-
-		if(strcmp(argv[i], "<") == 0)
-		{
-			if((pid = fork()) == 0)
-			{
-				int inFD = open(argv[i+1], O_RDONLY);
-				dup2(inFD,STDIN_FILENO);
-				argv[i] = NULL;
-				close(inFD);
-				execvp(argv[0], argv);
-
-			}
-		}
-		else if(strcmp(argv[i], ">") == 0)
-		{
-			if((pid = fork()) == 0)
-			{
-				int outFD = creat(argv[i+1], 0644);
-				dup2(outFD, STDOUT_FILENO);
-				argv[i] = NULL;
-				close(outFD);
-				execvp(argv[0],argv);
-
-			}
-		}
-		i++;
-	}
-	if(pid == 0)
-	{
-		if(fork() == 0)
-		{
-			execvp(argv[0], argv);
-		}
-	}
-}
-
 void parseParsed(char** argv)
 {
 	int i = 0;
@@ -924,101 +880,6 @@ void getParsedLength(char** argv)
 	{
 		parsedLength++;
 		i++;	
-	}
-	return;
-}
-
-void launch3(char** argv)
-{
-	int i = 0;
-	int piped = 0;
-	pid_t pid;
-	int fd[2];
-	int start = 0;
-	fd[0] = -1;
-	fd[1] = -1;
-	while(i < parsedLength)
-	{
-			if(pipeCount > 0)
-			{
-				pipe(fd);
-				piped = 1;
-				pipeCount--;
-			}
-			else
-			{
-				fd[0] = -1;
-				fd[1] = -1;
-			}
-
-		while(argv[i] != NULL)
-		{
-			if(strcmp(argv[i],"<") == 0)
-			{
-				int j = i;
-				argv[i] = NULL;
-				start = i;
-				i += 2;
-				if((pid = fork()) == 0)
-				{
-					if(piped != 1)
-					{
-						fd[0] = creat(argv[j+1], 0644);
-						dup2(fd[0], STDIN_FILENO);
-						argv[j] = NULL;
-						close(fd[0]);
-						execvp(argv[start],argv);
-					}
-					else
-					{
-						dup2(fd[0], STDIN_FILENO);
-						argv[j] = NULL;
-						piped = 0;
-						execvp(argv[start], argv);
-					}
-				}
-				start = i + 1;
-			}
-			else if(strcmp(argv[i], ">") == 0)
-			{
-				int j = i;
-				argv[i] = NULL;
-				i += 2;
-				if((pid = fork()) == 0)
-				{
-					if(piped != 1)
-					{
-						fd[1] = creat(argv[j+1], 0644);
-						dup2(fd[1], STDOUT_FILENO);
-						argv[j] = NULL;
-						close(fd[1]);
-						int k = 0;
-						while(argv[start+k] != NULL)
-						{
-							fputs(argv[start+k],stdout);
-							printf("\n");
-							k++;
-						}
-						execvp(argv[start],argv);
-					}
-					else
-					{
-						dup2(fd[1], STDOUT_FILENO);
-						argv[j] = NULL;
-						piped = 0;
-						execvp(argv[start], argv);
-					}
-	
-				}
-				start = i + 1;
-			}
-			i++;
-		}
-		if((pid = fork()) == 0)
-		{
-			printf("end ex\n");
-			execvp(argv[start], argv);
-		}
 	}
 	return;
 }
