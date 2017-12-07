@@ -41,7 +41,7 @@
 
 /* Global variables */
 extern char **environ;      /* defined in libc */
-char prompt[] = "snsh> ";    /* command line prompt (DO NOT CHANGE) */
+char prompt[] = "snsh> ";    /* command line prompt */
 int verbose = 0;            /* if true, print additional output */
 int nextjid = 1;            /* next job ID to allocate */
 char sbuf[MAXLINE];         /* for composing sprintf messages */
@@ -72,8 +72,10 @@ void eval(char *cmdline);
 int builtin_cmd(char **argv);
 void do_bgfg(char **argv);
 void waitfg(pid_t pid);
-void launch(char** argv, int bg);
-void launch2(char** argv);
+void launch(char** argv, int bg); /* Launches job */
+//void launch2(char** argv);
+//void launch3(char** argv);
+void pipeLaunch(char** argv);	/* Launches job if command contains pipes */
 
 void sigchld_handler(int sig);
 void sigtstp_handler(int sig);
@@ -82,8 +84,6 @@ void sigcont_handler(int sig);
 void printJob(pid_t pid);
 void getIOfile(char** argv);
 void parseParsed(char** argv);
-void launch3(char** argv);
-void launch4(char** argv);
 void getParsedLength(char** argv);
 
 /* Here are helper routines that we've provided for you */
@@ -139,7 +139,6 @@ int main(int argc, char **argv)
 
     /* Install the signal handlers */
 
-    /* These are the ones you will need to implement */
     Signal(SIGINT,  sigint_handler);   /* ctrl-c */
     Signal(SIGTSTP, sigtstp_handler);  /* ctrl-z */
     Signal(SIGCHLD, sigchld_handler);  /* Terminated or stopped child */
@@ -158,8 +157,9 @@ int main(int argc, char **argv)
 	    printf("%s", prompt);
 	    fflush(stdout);
 	}
-	if ((fgets(cmdline, MAXLINE, stdin) == NULL) && ferror(stdin))
+	if ((fgets(cmdline, MAXLINE, stdin) == NULL) && ferror(stdin)){
 	    app_error("fgets error");
+	}
 	if (feof(stdin)) { /* End of file (ctrl-d) */
 	    fflush(stdout);
 	    exit(0);
@@ -175,18 +175,12 @@ int main(int argc, char **argv)
 
 	getIOfile(parsedArgs); //gets location of file name if < or > is found
 
-
-	//parsedArgs[IOfileIndex-1] = NULL; //sets the < or > if found to NULL so they are not included when command is run
-
-	//	printf("parsed %c \n builtin %d\n", *parsedArgs[0], builtin);
-	
 	getParsedLength(parsedArgs);
 	parseParsed(parsedArgs);
 
-//	getParsedLength(parsedArgs);
 	if(pipeCount > 0)
 	{
-		launch4(parsedArgs);
+		pipeLaunch(parsedArgs);
 	}
 	else
 	{
@@ -195,21 +189,7 @@ int main(int argc, char **argv)
 			launch(parsedArgs,bg);
 		}
 	}
-	/*
-	if(builtin == 0)
-	{
-		launch3(parsedArgs);
-	}
-	*/
-
-	//if(builtin == 0)
-	//	launch(parsedArgs);
-/*
-	if(builtin == 0)
-	{
-		eval(cmdline);
-	}	
-*/
+	
 	fflush(stdout);
 	fflush(stdout);
    }
@@ -328,7 +308,7 @@ int builtin_cmd(char **argv)
 	 {
 		return -1;
  	 }
-	 if(strcmp(argv[0], "quit") == 0)
+	 if((strcmp(argv[0], "quit") == 0) || (strcmp(argv[0], "close") == 0) || (strcmp(argv[0], "exit") == 0))
 	 {
 		 printf("\nQuitting\n\n");
 		 exit(0);
@@ -337,6 +317,11 @@ int builtin_cmd(char **argv)
 	 {
 		 listjobs(jobs);
 	 	 return 1;	
+	 } 
+	 else if(strcmp(argv[0], "help") == 0)
+	 {
+	 	usage();	
+		return 1;	
 	 } 
 	 else if(strcmp(argv[0], "bg") == 0)
 	 {
@@ -731,7 +716,7 @@ void usage(void)
     printf("   -h   print this message\n");
     printf("   -v   print additional diagnostic information\n");
     printf("   -p   do not emit a command prompt\n");
-    exit(1);
+    //exit(1);
 }
 
 /*
@@ -1038,7 +1023,7 @@ void launch3(char** argv)
 	return;
 }
 
-void launch4(char** argv)
+void pipeLaunch(char** argv)
 {	
 	int i = 0;
 	pid_t pid;
